@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Photo Triage — Hey Alexia</title>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --card-bg: #1a1a1a;
+    --accent: #4a9eff;
+    --green: #34c759;
+    --red: #ff3b30;
+    --text: #f5f5f5;
+    --text-dim: #888;
+    --radius: 16px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100dvh;
+    width: 100vw;
+    touch-action: pan-y;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; flex-direction: column; height: 100dvh; width: 100vw; }
+  .screen.active { display: flex; }
+
+  /* ── Login Screen ── */
+  #login-screen {
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 32px;
+  }
+  #login-screen h1 { font-size: 28px; font-weight: 700; }
+  #login-screen p { color: var(--text-dim); font-size: 15px; text-align: center; max-width: 300px; }
+  .btn-login {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-login:active { opacity: 0.8; }
+
+  /* ── Header ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    background: var(--card-bg);
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .progress-text { font-size: 15px; font-weight: 600; }
+  .progress-bar-wrap {
+    flex: 1;
+    height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin: 0 16px;
+    min-width: 60px;
+  }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+  .btn-icon {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 22px;
+    padding: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    border-radius: 8px;
+  }
+  .btn-icon:active { background: rgba(255,255,255,0.1); }
+  .btn-icon:disabled { opacity: 0.3; pointer-events: none; }
+
+  /* ── Photo Card Area ── */
+  .card-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    padding: 16px;
+  }
+
+  .photo-card {
+    width: 100%;
+    max-width: 500px;
+    height: 100%;
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    background: var(--card-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    will-change: transform;
+    transition: transform 0.08s ease-out;
+  }
+  .photo-card img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+  .photo-card .swipe-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 72px;
+    font-weight: 900;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .photo-card .swipe-overlay.keep { background: rgba(52,199,89,0.3); color: var(--green); }
+  .photo-card .swipe-overlay.trash { background: rgba(255,59,48,0.3); color: var(--red); }
+
+  .photo-filename {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.6);
+    padding: 4px 8px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+
+  /* ── Action Buttons ── */
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 16px;
+    padding-bottom: max(16px, var(--safe-bottom));
+    flex-shrink: 0;
+  }
+  .btn-action {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 2px solid;
+    background: none;
+    font-size: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s, background 0.15s;
+  }
+  .btn-action:active { transform: scale(0.9); }
+  .btn-trash { border-color: var(--red); color: var(--red); }
+  .btn-trash:active { background: rgba(255,59,48,0.2); }
+  .btn-keep { border-color: var(--green); color: var(--green); }
+  .btn-keep:active { background: rgba(52,199,89,0.2); }
+
+  /* ── Tag Panel ── */
+  .tag-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    padding: 20px 16px;
+    padding-bottom: max(20px, var(--safe-bottom));
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 100;
+    max-height: 75dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tag-panel.open { transform: translateY(0); }
+  .tag-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 99;
+    display: none;
+  }
+  .tag-panel-backdrop.open { display: block; }
+
+  .tag-section { margin-bottom: 16px; }
+  .tag-section-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .tag-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tag-chip {
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: #2a2a2a;
+    color: var(--text);
+    border: 2px solid transparent;
+    font-size: 15px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .tag-chip:active { background: #333; }
+  .tag-chip.selected {
+    border-color: var(--accent);
+    background: rgba(74,158,255,0.15);
+  }
+
+  .btn-confirm-tag {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 17px;
+    font-weight: 600;
+    margin-top: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-confirm-tag:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+  }
+  .btn-confirm-tag:active { opacity: 0.8; }
+
+  /* ── Done / Summary Screen ── */
+  #done-screen {
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+  }
+  #done-screen h1 { font-size: 28px; }
+  .summary-stat {
+    font-size: 48px;
+    font-weight: 800;
+  }
+  .summary-stat.kept { color: var(--green); }
+  .summary-stat.trashed { color: var(--red); }
+  .summary-row { display: flex; gap: 48px; margin: 16px 0; }
+  .summary-col { text-align: center; }
+  .summary-label { font-size: 14px; color: var(--text-dim); margin-top: 4px; }
+
+  .btn-process {
+    background: var(--green);
+    color: #fff;
+    border: none;
+    padding: 16px 40px;
+    border-radius: 12px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 16px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-process:active { opacity: 0.8; }
+  .btn-process:disabled { opacity: 0.5; pointer-events: none; }
+
+  /* ── Processing Screen ── */
+  #processing-screen {
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+  }
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #333;
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .process-status { font-size: 15px; color: var(--text-dim); }
+
+  /* ── Result Screen ── */
+  #result-screen {
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+  }
+  #result-screen h1 { font-size: 28px; }
+  .result-icon { font-size: 64px; }
+  .btn-restart {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 12px;
+    font-size: 17px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 16px;
+  }
+
+  /* ── Loading state ── */
+  .loading-msg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 17px;
+    padding: 32px;
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ── Login Screen ── -->
+<div id="login-screen" class="screen active">
+  <h1>Photo Triage</h1>
+  <p>Sign in with Google to sort walkthrough photos into Drive folders.</p>
+  <button class="btn-login" id="btn-sign-in">Sign in with Google</button>
+</div>
+
+<!-- ── Triage Screen ── -->
+<div id="triage-screen" class="screen">
+  <div class="header">
+    <div class="header-left">
+      <button class="btn-icon" id="btn-undo" disabled title="Undo">&#8592;</button>
+      <span class="progress-text" id="progress-text">0 / 0</span>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" id="progress-bar" style="width:0%"></div>
+    </div>
+    <button class="btn-icon" id="btn-done" title="Done">Done</button>
+  </div>
+
+  <div class="card-area" id="card-area">
+    <div class="loading-msg" id="loading-msg">
+      <div class="spinner"></div>
+      Loading photos from inbox...
+    </div>
+    <div class="photo-card" id="photo-card" style="display:none">
+      <div class="swipe-overlay keep" id="overlay-keep">&#10003;</div>
+      <div class="swipe-overlay trash" id="overlay-trash">&#10007;</div>
+      <img id="photo-img" src="" alt="Photo">
+      <div class="photo-filename" id="photo-filename"></div>
+    </div>
+    <div class="empty-state" id="empty-state" style="display:none">
+      <div class="icon">&#128247;</div>
+      <p>No photos in inbox.</p>
+    </div>
+  </div>
+
+  <div class="actions" id="actions" style="display:none">
+    <button class="btn-action btn-trash" id="btn-trash" title="Trash">&#10007;</button>
+    <button class="btn-action btn-keep" id="btn-keep" title="Keep">&#10003;</button>
+  </div>
+</div>
+
+<!-- ── Tag Panel ── -->
+<div class="tag-panel-backdrop" id="tag-backdrop"></div>
+<div class="tag-panel" id="tag-panel">
+  <div class="tag-section">
+    <div class="tag-section-label">Property</div>
+    <div class="tag-grid" id="tag-properties"></div>
+  </div>
+  <div class="tag-section">
+    <div class="tag-section-label">Area</div>
+    <div class="tag-grid" id="tag-areas"></div>
+  </div>
+  <div class="tag-section">
+    <div class="tag-section-label">Phase</div>
+    <div class="tag-grid" id="tag-phases"></div>
+  </div>
+  <button class="btn-confirm-tag" id="btn-confirm-tag" disabled>Confirm Tags</button>
+</div>
+
+<!-- ── Done / Review Screen ── -->
+<div id="done-screen" class="screen">
+  <h1>Triage Complete</h1>
+  <div class="summary-row">
+    <div class="summary-col">
+      <div class="summary-stat kept" id="stat-kept">0</div>
+      <div class="summary-label">Kept</div>
+    </div>
+    <div class="summary-col">
+      <div class="summary-stat trashed" id="stat-trashed">0</div>
+      <div class="summary-label">Trashed</div>
+    </div>
+  </div>
+  <p style="color:var(--text-dim);font-size:14px" id="stat-skipped"></p>
+  <button class="btn-process" id="btn-process">Move Photos to Folders</button>
+  <button class="btn-icon" id="btn-back-triage" style="margin-top:8px;font-size:15px;color:var(--text-dim)">&#8592; Back to triage</button>
+</div>
+
+<!-- ── Processing Screen ── -->
+<div id="processing-screen" class="screen">
+  <div class="spinner"></div>
+  <h2>Processing...</h2>
+  <p class="process-status" id="process-status">Moving photos...</p>
+</div>
+
+<!-- ── Result Screen ── -->
+<div id="result-screen" class="screen">
+  <div class="result-icon" id="result-icon">&#10003;</div>
+  <h1 id="result-title">All Done!</h1>
+  <p style="color:var(--text-dim)" id="result-detail"></p>
+  <button class="btn-restart" id="btn-restart">Triage More Photos</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// Photo Triage Tool — Hey Alexia
+// Client-side Google Drive photo organizer
+// ═══════════════════════════════════════════════════
+
+const App = (() => {
+  // ── State ──
+  let config = null;
+  let accessToken = null;
+  let photos = [];          // [{id, name, thumbnailLink, mimeType}]
+  let decisions = [];       // [{photoIndex, action:'keep'|'trash', tags:{property,area,phase}}]
+  let currentIndex = 0;
+  let nextPageToken = null;
+  let allPhotosLoaded = false;
+  let tokenClient = null;
+
+  // ── DOM refs ──
+  const $ = id => document.getElementById(id);
+
+  // ── Screens ──
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    $(id).classList.add('active');
+  }
+
+  // ══════════════════════════════
+  // Config
+  // ══════════════════════════════
+  async function loadConfig() {
+    const resp = await fetch('config.json');
+    config = await resp.json();
+    buildTagUI();
+  }
+
+  function buildTagUI() {
+    $('tag-properties').innerHTML = config.properties
+      .map((p, i) => `<button class="tag-chip" data-group="property" data-value="${i}">${p.name}</button>`)
+      .join('');
+    $('tag-areas').innerHTML = config.areas
+      .map(a => `<button class="tag-chip" data-group="area" data-value="${a}">${a}</button>`)
+      .join('');
+    $('tag-phases').innerHTML = config.phases
+      .map(p => `<button class="tag-chip" data-group="phase" data-value="${p}">${p}</button>`)
+      .join('');
+
+    // Tag chip click handlers
+    document.querySelectorAll('.tag-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const group = chip.dataset.group;
+        document.querySelectorAll(`.tag-chip[data-group="${group}"]`).forEach(c => c.classList.remove('selected'));
+        chip.classList.add('selected');
+        updateConfirmButton();
+      });
+    });
+  }
+
+  // ══════════════════════════════
+  // Google Auth (GIS)
+  // ══════════════════════════════
+  function initAuth() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: config.clientId,
+      scope: 'https://www.googleapis.com/auth/drive',
+      callback: (resp) => {
+        if (resp.error) {
+          console.error('Auth error:', resp);
+          return;
+        }
+        accessToken = resp.access_token;
+        onSignedIn();
+      },
+    });
+    $('btn-sign-in').addEventListener('click', () => {
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    });
+  }
+
+  function onSignedIn() {
+    showScreen('triage-screen');
+    loadPhotos();
+  }
+
+  // ══════════════════════════════
+  // Drive API helpers
+  // ══════════════════════════════
+  async function driveApi(path, options = {}) {
+    const base = 'https://www.googleapis.com/drive/v3';
+    const url = path.startsWith('http') ? path : `${base}${path}`;
+    const resp = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        ...(options.headers || {}),
+      },
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`Drive API ${resp.status}: ${err}`);
+    }
+    if (resp.status === 204) return null;
+    return resp.json();
+  }
+
+  async function listFiles(folderId, pageToken = null) {
+    let q = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`;
+    let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType)&pageSize=${config.pageSize}&orderBy=createdTime`;
+    if (pageToken) url += `&pageToken=${pageToken}`;
+    return driveApi(url);
+  }
+
+  async function moveFile(fileId, fromFolderId, toFolderId) {
+    return driveApi(`/files/${fileId}?addParents=${toFolderId}&removeParents=${fromFolderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+  }
+
+  async function renameFile(fileId, newName) {
+    return driveApi(`/files/${fileId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+  }
+
+  async function createFolder(name, parentId) {
+    return driveApi('/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId],
+      }),
+    });
+  }
+
+  async function findOrCreateFolder(name, parentId) {
+    const q = `name='${name}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const result = await driveApi(`/files?q=${encodeURIComponent(q)}&fields=files(id,name)`);
+    if (result.files && result.files.length > 0) {
+      return result.files[0].id;
+    }
+    const folder = await createFolder(name, parentId);
+    return folder.id;
+  }
+
+  // ══════════════════════════════
+  // Photo Loading
+  // ══════════════════════════════
+  async function loadPhotos() {
+    $('loading-msg').style.display = 'flex';
+    $('photo-card').style.display = 'none';
+    $('actions').style.display = 'none';
+    $('empty-state').style.display = 'none';
+
+    try {
+      const result = await listFiles(config.inboxFolderId, null);
+      photos = result.files || [];
+      nextPageToken = result.nextPageToken || null;
+      allPhotosLoaded = !nextPageToken;
+
+      if (photos.length === 0) {
+        $('loading-msg').style.display = 'none';
+        $('empty-state').style.display = 'block';
+        return;
+      }
+
+      currentIndex = 0;
+      decisions = [];
+      showCurrentPhoto();
+    } catch (err) {
+      $('loading-msg').innerHTML = `<p style="color:var(--red)">Error loading photos: ${err.message}</p>`;
+      console.error(err);
+    }
+  }
+
+  async function loadMorePhotos() {
+    if (allPhotosLoaded || !nextPageToken) return;
+    try {
+      const result = await listFiles(config.inboxFolderId, nextPageToken);
+      photos = photos.concat(result.files || []);
+      nextPageToken = result.nextPageToken || null;
+      allPhotosLoaded = !nextPageToken;
+    } catch (err) {
+      console.error('Error loading more photos:', err);
+    }
+  }
+
+  // ══════════════════════════════
+  // Photo Display
+  // ══════════════════════════════
+  function showCurrentPhoto() {
+    $('loading-msg').style.display = 'none';
+
+    if (currentIndex >= photos.length) {
+      showDoneScreen();
+      return;
+    }
+
+    const photo = photos[currentIndex];
+    const card = $('photo-card');
+    const img = $('photo-img');
+
+    // Use larger thumbnail for better quality
+    let thumbUrl = photo.thumbnailLink;
+    if (thumbUrl) {
+      thumbUrl = thumbUrl.replace(/=s\d+/, '=s800');
+    }
+
+    img.src = thumbUrl || '';
+    $('photo-filename').textContent = photo.name;
+    card.style.display = 'flex';
+    card.style.transform = '';
+    $('actions').style.display = 'flex';
+
+    // Reset overlays
+    $('overlay-keep').style.opacity = 0;
+    $('overlay-trash').style.opacity = 0;
+
+    updateProgress();
+    updateUndoButton();
+
+    // Prefetch next page if we're getting close
+    if (!allPhotosLoaded && currentIndex >= photos.length - 10) {
+      loadMorePhotos();
+    }
+  }
+
+  function updateProgress() {
+    const total = allPhotosLoaded ? photos.length : `${photos.length}+`;
+    const done = decisions.length;
+    $('progress-text').textContent = `${done + 1} of ${total}`;
+    const pct = allPhotosLoaded ? ((done / photos.length) * 100) : ((done / photos.length) * 100);
+    $('progress-bar').style.width = `${Math.min(pct, 100)}%`;
+  }
+
+  function updateUndoButton() {
+    $('btn-undo').disabled = decisions.length === 0;
+  }
+
+  // ══════════════════════════════
+  // Decisions
+  // ══════════════════════════════
+  function trashPhoto() {
+    decisions.push({ photoIndex: currentIndex, action: 'trash', tags: null });
+    animateSwipe('left', () => {
+      currentIndex++;
+      showCurrentPhoto();
+    });
+  }
+
+  function keepPhoto() {
+    openTagPanel();
+  }
+
+  function confirmTags() {
+    const property = document.querySelector('.tag-chip[data-group="property"].selected');
+    const area = document.querySelector('.tag-chip[data-group="area"].selected');
+    const phase = document.querySelector('.tag-chip[data-group="phase"].selected');
+
+    if (!property || !area || !phase) return;
+
+    decisions.push({
+      photoIndex: currentIndex,
+      action: 'keep',
+      tags: {
+        propertyIndex: parseInt(property.dataset.value),
+        area: area.dataset.value,
+        phase: phase.dataset.value,
+      },
+    });
+
+    closeTagPanel();
+    animateSwipe('right', () => {
+      currentIndex++;
+      showCurrentPhoto();
+    });
+  }
+
+  function undoDecision() {
+    if (decisions.length === 0) return;
+    decisions.pop();
+    currentIndex--;
+    closeTagPanel();
+    showCurrentPhoto();
+  }
+
+  // ══════════════════════════════
+  // Tag Panel
+  // ══════════════════════════════
+  function openTagPanel() {
+    // Reset selections
+    document.querySelectorAll('.tag-chip').forEach(c => c.classList.remove('selected'));
+    updateConfirmButton();
+    $('tag-panel').classList.add('open');
+    $('tag-backdrop').classList.add('open');
+  }
+
+  function closeTagPanel() {
+    $('tag-panel').classList.remove('open');
+    $('tag-backdrop').classList.remove('open');
+  }
+
+  function updateConfirmButton() {
+    const hasProperty = !!document.querySelector('.tag-chip[data-group="property"].selected');
+    const hasArea = !!document.querySelector('.tag-chip[data-group="area"].selected');
+    const hasPhase = !!document.querySelector('.tag-chip[data-group="phase"].selected');
+    $('btn-confirm-tag').disabled = !(hasProperty && hasArea && hasPhase);
+  }
+
+  // ══════════════════════════════
+  // Swipe Gestures
+  // ══════════════════════════════
+  function initSwipe() {
+    const card = $('photo-card');
+    let startX = 0, startY = 0, deltaX = 0, swiping = false;
+    const THRESHOLD = 80;
+
+    card.addEventListener('touchstart', e => {
+      if ($('tag-panel').classList.contains('open')) return;
+      const t = e.touches[0];
+      startX = t.clientX;
+      startY = t.clientY;
+      deltaX = 0;
+      swiping = true;
+      card.style.transition = 'none';
+    }, { passive: true });
+
+    card.addEventListener('touchmove', e => {
+      if (!swiping) return;
+      const t = e.touches[0];
+      const dy = Math.abs(t.clientY - startY);
+      deltaX = t.clientX - startX;
+
+      // If vertical scroll intent, cancel swipe
+      if (dy > Math.abs(deltaX) && Math.abs(deltaX) < 20) {
+        swiping = false;
+        card.style.transform = '';
+        return;
+      }
+
+      card.style.transform = `translateX(${deltaX}px) rotate(${deltaX * 0.05}deg)`;
+
+      // Show overlays
+      if (deltaX > 30) {
+        $('overlay-keep').style.opacity = Math.min((deltaX - 30) / THRESHOLD, 1);
+        $('overlay-trash').style.opacity = 0;
+      } else if (deltaX < -30) {
+        $('overlay-trash').style.opacity = Math.min((Math.abs(deltaX) - 30) / THRESHOLD, 1);
+        $('overlay-keep').style.opacity = 0;
+      } else {
+        $('overlay-keep').style.opacity = 0;
+        $('overlay-trash').style.opacity = 0;
+      }
+    }, { passive: true });
+
+    card.addEventListener('touchend', () => {
+      if (!swiping) return;
+      swiping = false;
+      card.style.transition = 'transform 0.3s ease';
+
+      if (deltaX > THRESHOLD) {
+        keepPhoto();
+        card.style.transform = '';
+        resetOverlays();
+      } else if (deltaX < -THRESHOLD) {
+        trashPhoto();
+      } else {
+        card.style.transform = '';
+        resetOverlays();
+      }
+    });
+  }
+
+  function resetOverlays() {
+    $('overlay-keep').style.opacity = 0;
+    $('overlay-trash').style.opacity = 0;
+  }
+
+  function animateSwipe(direction, callback) {
+    const card = $('photo-card');
+    const x = direction === 'left' ? -window.innerWidth : window.innerWidth;
+    card.style.transition = 'transform 0.3s ease';
+    card.style.transform = `translateX(${x}px) rotate(${x * 0.03}deg)`;
+    setTimeout(() => {
+      card.style.transition = 'none';
+      card.style.transform = 'translateX(0)';
+      resetOverlays();
+      callback();
+    }, 300);
+  }
+
+  // ══════════════════════════════
+  // Keyboard (Desktop)
+  // ══════════════════════════════
+  function initKeyboard() {
+    document.addEventListener('keydown', e => {
+      if ($('tag-panel').classList.contains('open')) {
+        if (e.key === 'Escape') closeTagPanel();
+        return;
+      }
+      const screen = document.querySelector('.screen.active');
+      if (screen?.id !== 'triage-screen') return;
+      if (currentIndex >= photos.length) return;
+
+      if (e.key === 'ArrowLeft') trashPhoto();
+      else if (e.key === 'ArrowRight') keepPhoto();
+      else if (e.key === 'z' && (e.ctrlKey || e.metaKey)) undoDecision();
+    });
+  }
+
+  // ══════════════════════════════
+  // Done Screen
+  // ══════════════════════════════
+  function showDoneScreen() {
+    const kept = decisions.filter(d => d.action === 'keep').length;
+    const trashed = decisions.filter(d => d.action === 'trash').length;
+    const skipped = photos.length - decisions.length;
+
+    $('stat-kept').textContent = kept;
+    $('stat-trashed').textContent = trashed;
+    $('stat-skipped').textContent = skipped > 0 ? `${skipped} skipped (still in inbox)` : '';
+    $('btn-process').disabled = (kept + trashed) === 0;
+
+    showScreen('done-screen');
+  }
+
+  // ══════════════════════════════
+  // Batch Processing
+  // ══════════════════════════════
+  async function processDecisions() {
+    showScreen('processing-screen');
+    let moved = 0, trashed = 0, errors = 0;
+
+    // Ensure Trash folder exists
+    let trashFolderId;
+    try {
+      $('process-status').textContent = 'Setting up folders...';
+      trashFolderId = await findOrCreateFolder(config.trashFolderName, config.inboxFolderId);
+    } catch (err) {
+      showResult(false, `Failed to create Trash folder: ${err.message}`);
+      return;
+    }
+
+    // Build a cache of area subfolder IDs to avoid repeated lookups
+    const folderCache = {};
+
+    const total = decisions.length;
+    for (let i = 0; i < decisions.length; i++) {
+      const d = decisions[i];
+      const photo = photos[d.photoIndex];
+      $('process-status').textContent = `Processing ${i + 1} of ${total}...`;
+
+      try {
+        if (d.action === 'trash') {
+          await moveFile(photo.id, config.inboxFolderId, trashFolderId);
+          trashed++;
+        } else if (d.action === 'keep') {
+          const prop = config.properties[d.tags.propertyIndex];
+          let walkthroughsId = prop.walkthroughsFolderId;
+
+          // If no walkthroughs folder configured, we can't proceed
+          if (!walkthroughsId) {
+            console.warn(`No walkthroughs folder for ${prop.name}. Skipping.`);
+            errors++;
+            continue;
+          }
+
+          // Find or create area subfolder
+          const cacheKey = `${walkthroughsId}/${d.tags.area}`;
+          if (!folderCache[cacheKey]) {
+            folderCache[cacheKey] = await findOrCreateFolder(d.tags.area, walkthroughsId);
+          }
+          const areaFolderId = folderCache[cacheKey];
+
+          // Rename file
+          const ext = photo.name.split('.').pop() || 'jpg';
+          const date = new Date().toISOString().split('T')[0];
+          const seq = String(i + 1).padStart(3, '0');
+          const newName = `${d.tags.phase}_${date}_${seq}.${ext}`;
+
+          await renameFile(photo.id, newName);
+          await moveFile(photo.id, config.inboxFolderId, areaFolderId);
+          moved++;
+        }
+      } catch (err) {
+        console.error(`Error processing ${photo.name}:`, err);
+        errors++;
+      }
+    }
+
+    const detail = [];
+    if (moved) detail.push(`${moved} moved to folders`);
+    if (trashed) detail.push(`${trashed} moved to trash`);
+    if (errors) detail.push(`${errors} failed`);
+
+    showResult(errors === 0, detail.join(', '));
+  }
+
+  function showResult(success, detail) {
+    $('result-icon').textContent = success ? '\u2713' : '\u26A0';
+    $('result-icon').style.color = success ? 'var(--green)' : '#ff9500';
+    $('result-title').textContent = success ? 'All Done!' : 'Completed with Errors';
+    $('result-detail').textContent = detail;
+    showScreen('result-screen');
+  }
+
+  // ══════════════════════════════
+  // Event Bindings
+  // ══════════════════════════════
+  function bindEvents() {
+    $('btn-trash').addEventListener('click', trashPhoto);
+    $('btn-keep').addEventListener('click', keepPhoto);
+    $('btn-undo').addEventListener('click', undoDecision);
+    $('btn-confirm-tag').addEventListener('click', confirmTags);
+    $('tag-backdrop').addEventListener('click', closeTagPanel);
+    $('btn-done').addEventListener('click', showDoneScreen);
+    $('btn-back-triage').addEventListener('click', () => {
+      showScreen('triage-screen');
+      showCurrentPhoto();
+    });
+    $('btn-process').addEventListener('click', processDecisions);
+    $('btn-restart').addEventListener('click', () => {
+      showScreen('triage-screen');
+      loadPhotos();
+    });
+  }
+
+  // ══════════════════════════════
+  // Init
+  // ══════════════════════════════
+  async function init() {
+    await loadConfig();
+    bindEvents();
+    initSwipe();
+    initKeyboard();
+    initAuth();
+  }
+
+  return { init };
+})();
+
+// Load GIS library, then init
+window.addEventListener('load', () => {
+  const script = document.createElement('script');
+  script.src = 'https://accounts.google.com/gsi/client';
+  script.onload = () => App.init();
+  document.head.appendChild(script);
+});
+</script>
+</body>
+</html>

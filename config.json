@@ -1,0 +1,42 @@
+{
+  "clientId": "264370607606-gir9fko5q02a2gktcfj574jlnlais1no.apps.googleusercontent.com",
+  "inboxFolderId": "1pZgCzt_YLC1SE49TIL8UZGGKX9pNGf1o",
+  "trashFolderName": "Trash",
+  "pageSize": 50,
+  "properties": [
+    {
+      "name": "271 S Mapleton",
+      "walkthroughsFolderId": null
+    },
+    {
+      "name": "16572 Via Floresta",
+      "walkthroughsFolderId": "1gboKvZEL50rDWQlyDoXNMz1eXVllfnlz"
+    },
+    {
+      "name": "282 Trino Way",
+      "walkthroughsFolderId": "1t29hOIj6lOCxfl5K4uFAlKaVxQ1653O5"
+    },
+    {
+      "name": "1543 Palisades Dr",
+      "walkthroughsFolderId": null
+    }
+  ],
+  "areas": [
+    "Kitchen",
+    "Bathroom",
+    "Bedroom",
+    "Living Room",
+    "Exterior",
+    "HVAC",
+    "Roof",
+    "Pool/Fountain",
+    "Garage",
+    "Hallway",
+    "Other"
+  ],
+  "phases": [
+    "Before",
+    "During",
+    "After"
+  ]
+}
