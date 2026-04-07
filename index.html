@@ -952,7 +952,7 @@ const App = (() => {
 
   async function listFiles(folderId, pageToken = null) {
     let q = `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
-    let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType,webContentLink)&pageSize=${config.pageSize}&orderBy=createdTime desc`;
+    let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType,webContentLink,createdTime,imageMediaMetadata(time))&pageSize=${config.pageSize}&orderBy=createdTime desc`;
     if (pageToken) url += `&pageToken=${pageToken}`;
     return driveApi(url);
   }
@@ -1073,7 +1073,17 @@ const App = (() => {
       img.src = thumbUrl || '';
     }
 
-    $('photo-filename').textContent = photo.name + (isVideo ? ' 🎬' : '');
+    // Show filename + date taken
+    const takenDate = photo.imageMediaMetadata?.time || photo.createdTime;
+    let dateStr = '';
+    if (takenDate) {
+      try {
+        const d = new Date(takenDate);
+        dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          + ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      } catch (e) { dateStr = takenDate; }
+    }
+    $('photo-filename').textContent = (isVideo ? '🎬 ' : '') + photo.name + (dateStr ? '  ·  ' + dateStr : '');
     card.style.display = 'flex';
     card.style.transform = '';
     $('actions').style.display = 'flex';
@@ -1361,11 +1371,14 @@ const App = (() => {
           }
           const phaseFolderId = folderCache[phaseCacheKey];
 
-          // Rename file (clean timestamp, context is in folder path)
+          // Rename file using date taken (or upload date as fallback)
           const ext = photo.name.split('.').pop() || 'jpg';
-          const date = new Date().toISOString().split('T')[0];
+          const takenDate = photo.imageMediaMetadata?.time || photo.createdTime;
+          const dateObj = takenDate ? new Date(takenDate) : new Date();
+          const date = dateObj.toISOString().split('T')[0];
+          const time = dateObj.toTimeString().slice(0, 5).replace(':', '');
           const seq = String(i + 1).padStart(3, '0');
-          const newName = `${date}_${seq}.${ext}`;
+          const newName = `${date}_${time}_${seq}.${ext}`;
 
           await renameFile(photo.id, newName);
           await moveFile(photo.id, config.inboxFolderId, phaseFolderId);
