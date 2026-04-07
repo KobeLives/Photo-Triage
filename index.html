@@ -1153,6 +1153,8 @@ const App = (() => {
     if (!property || !area || !phase) return;
 
     lastSelectedPropertyIndex = parseInt(property.dataset.value);
+    lastSelectedArea = area.dataset.value;
+    lastSelectedPhase = phase.dataset.value;
 
     decisions.push({
       photoIndex: currentIndex,
@@ -1183,19 +1185,40 @@ const App = (() => {
   // Tag Panel
   // ══════════════════════════════
   let lastSelectedPropertyIndex = null;
+  let lastSelectedArea = null;
+  let lastSelectedPhase = null;
 
   function openTagPanel() {
     renderPropertyChips();
     $('tag-panel').classList.add('open');
     $('tag-backdrop').classList.add('open');
 
-    // Re-select the last used property
+    // Re-select the last used property, area, and phase
     if (lastSelectedPropertyIndex !== null && lastSelectedPropertyIndex < config.properties.length) {
       const chip = document.querySelector(`.tag-chip[data-group="property"][data-value="${lastSelectedPropertyIndex}"]`);
       if (chip) {
         chip.classList.add('selected');
         selectedPropertyIndex = lastSelectedPropertyIndex;
-        onPropertySelected(lastSelectedPropertyIndex);
+        onPropertySelected(lastSelectedPropertyIndex).then(() => {
+          // Re-select area
+          if (lastSelectedArea) {
+            const areaChip = document.querySelector(`.tag-chip[data-group="area"][data-value="${lastSelectedArea}"]`);
+            if (areaChip) {
+              areaChip.classList.add('selected');
+              onAreaSelected(lastSelectedPropertyIndex);
+              // Re-select phase
+              if (lastSelectedPhase) {
+                setTimeout(() => {
+                  const phaseChip = document.querySelector(`.tag-chip[data-group="phase"][data-value="${lastSelectedPhase}"]`);
+                  if (phaseChip) {
+                    phaseChip.classList.add('selected');
+                    updateConfirmButton();
+                  }
+                }, 50);
+              }
+            }
+          }
+        });
       }
     }
   }
