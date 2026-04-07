@@ -1438,12 +1438,17 @@ const App = (() => {
   }
 
   // ══════════════════════════════
-  // Batch Processing
+  // Batch Processing (with resume)
   // ══════════════════════════════
-  async function processDecisions() {
+  let processingState = null; // { startIndex, moved, trashed, errors, errorDetails }
+
+  async function processDecisions(resumeFrom = 0) {
     showScreen('processing-screen');
-    let moved = 0, trashed = 0, errors = 0;
-    const errorDetails = [];
+    await requestWakeLock();
+    let moved = resumeFrom > 0 && processingState ? processingState.moved : 0;
+    let trashed = resumeFrom > 0 && processingState ? processingState.trashed : 0;
+    let errors = resumeFrom > 0 && processingState ? processingState.errors : 0;
+    const errorDetails = resumeFrom > 0 && processingState ? processingState.errorDetails : [];
 
     // Ensure Trash folder exists
     let trashFolderId;
@@ -1459,10 +1464,13 @@ const App = (() => {
     const folderCache = {};
 
     const total = decisions.length;
-    for (let i = 0; i < decisions.length; i++) {
+    for (let i = resumeFrom; i < decisions.length; i++) {
       const d = decisions[i];
       const photo = photos[d.photoIndex];
       $('process-status').textContent = `Processing ${i + 1} of ${total}...`;
+
+      // Save state so we can resume if interrupted
+      processingState = { startIndex: i, moved, trashed, errors, errorDetails };
 
       try {
         if (d.action === 'trash') {
@@ -1472,12 +1480,11 @@ const App = (() => {
           const prop = config.properties[d.tags.propertyIndex];
           let walkthroughsId = prop.picturesFolderId;
 
-          // Auto-create property + Walkthroughs folder if none exists
+          // Auto-create property + Pictures folder if none exists
           if (!walkthroughsId) {
             $('process-status').textContent = `Creating folders for ${prop.name}...`;
             const propertyFolderId = await findOrCreateFolder(prop.name, config.rootFolderId);
             walkthroughsId = await findOrCreateFolder('Pictures', propertyFolderId);
-            // Save back so we don't re-create next time
             prop.picturesFolderId = walkthroughsId;
             saveConfigOverrides();
           }
@@ -1515,6 +1522,9 @@ const App = (() => {
       }
     }
 
+    processingState = null;
+    releaseWakeLock();
+
     const detail = [];
     if (moved) detail.push(`${moved} moved to folders`);
     if (trashed) detail.push(`${trashed} moved to trash`);
@@ -1532,6 +1542,29 @@ const App = (() => {
     $('result-title').textContent = success ? 'All Done!' : 'Completed with Errors';
     $('result-detail').textContent = detail;
     showScreen('result-screen');
+  }
+
+  // Auto-resume processing when tab becomes visible again
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && processingState) {
+      const resumeIdx = processingState.startIndex + 1; // skip the one that may have failed
+      console.log(`Resuming processing from ${resumeIdx}...`);
+      processDecisions(resumeIdx);
+    }
+  });
+
+  // Request Wake Lock during processing to prevent tab suspension
+  let wakeLock = null;
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      }
+    } catch (e) { console.log('Wake Lock not available:', e); }
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release(); wakeLock = null; }
   }
 
   // ══════════════════════════════
