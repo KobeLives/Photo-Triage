@@ -1126,10 +1126,29 @@ const App = (() => {
     loadPhotos();
   }
 
+  // Silently refresh the OAuth token (resolves when new token is ready)
+  function refreshToken() {
+    return new Promise((resolve, reject) => {
+      const origCallback = tokenClient.config?.callback;
+      tokenClient.callback = (resp) => {
+        // Restore original callback
+        tokenClient.callback = origCallback;
+        if (resp.error) {
+          reject(new Error(`Re-auth failed: ${resp.error}`));
+        } else {
+          accessToken = resp.access_token;
+          resolve();
+        }
+      };
+      // prompt: '' tries silent refresh first, falls back to consent popup
+      tokenClient.requestAccessToken({ prompt: '' });
+    });
+  }
+
   // ══════════════════════════════
   // Drive API helpers
   // ══════════════════════════════
-  async function driveApi(path, options = {}) {
+  async function driveApi(path, options = {}, _retried = false) {
     const base = 'https://www.googleapis.com/drive/v3';
     const url = path.startsWith('http') ? path : `${base}${path}`;
     const resp = await fetch(url, {
@@ -1139,6 +1158,11 @@ const App = (() => {
         ...(options.headers || {}),
       },
     });
+    // Auto-refresh token on 401 and retry once
+    if (resp.status === 401 && !_retried) {
+      await refreshToken();
+      return driveApi(path, options, true);
+    }
     if (!resp.ok) {
       const err = await resp.text();
       throw new Error(`Drive API ${resp.status}: ${err}`);
@@ -1572,6 +1596,19 @@ const App = (() => {
   async function processDecisions(resumeFrom = 0) {
     showScreen('processing-screen');
     await requestWakeLock();
+
+    // Verify token is valid before processing (prevents silent full-batch failure)
+    if (resumeFrom === 0) {
+      try {
+        $('process-status').textContent = 'Verifying connection...';
+        await driveApi('/about?fields=user');
+      } catch (err) {
+        showResult(false, `Authentication expired. Please sign in again and retry.\n${err.message}`);
+        releaseWakeLock();
+        return;
+      }
+    }
+
     let moved = resumeFrom > 0 && processingState ? processingState.moved : 0;
     let trashed = resumeFrom > 0 && processingState ? processingState.trashed : 0;
     let errors = resumeFrom > 0 && processingState ? processingState.errors : 0;
