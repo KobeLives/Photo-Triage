@@ -1308,20 +1308,27 @@ const App = (() => {
           }
 
           // Find or create area subfolder
-          const cacheKey = `${walkthroughsId}/${d.tags.area}`;
-          if (!folderCache[cacheKey]) {
-            folderCache[cacheKey] = await findOrCreateFolder(d.tags.area, walkthroughsId);
+          const areaCacheKey = `${walkthroughsId}/${d.tags.area}`;
+          if (!folderCache[areaCacheKey]) {
+            folderCache[areaCacheKey] = await findOrCreateFolder(d.tags.area, walkthroughsId);
           }
-          const areaFolderId = folderCache[cacheKey];
+          const areaFolderId = folderCache[areaCacheKey];
 
-          // Rename file
+          // Find or create phase subfolder inside area
+          const phaseCacheKey = `${areaFolderId}/${d.tags.phase}`;
+          if (!folderCache[phaseCacheKey]) {
+            folderCache[phaseCacheKey] = await findOrCreateFolder(d.tags.phase, areaFolderId);
+          }
+          const phaseFolderId = folderCache[phaseCacheKey];
+
+          // Rename file (clean timestamp, context is in folder path)
           const ext = photo.name.split('.').pop() || 'jpg';
           const date = new Date().toISOString().split('T')[0];
           const seq = String(i + 1).padStart(3, '0');
-          const newName = `${d.tags.phase}_${date}_${seq}.${ext}`;
+          const newName = `${date}_${seq}.${ext}`;
 
           await renameFile(photo.id, newName);
-          await moveFile(photo.id, config.inboxFolderId, areaFolderId);
+          await moveFile(photo.id, config.inboxFolderId, phaseFolderId);
           moved++;
         }
       } catch (err) {
