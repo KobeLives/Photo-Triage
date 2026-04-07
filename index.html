@@ -683,8 +683,32 @@ const App = (() => {
     const saved = localStorage.getItem('photoTriageConfig');
     if (saved) {
       const overrides = JSON.parse(saved);
-      if (overrides.properties) config.properties = overrides.properties;
+      if (overrides.properties) {
+        // Migrate old walkthroughsFolderId → picturesFolderId
+        overrides.properties.forEach(p => {
+          if (p.walkthroughsFolderId && !p.picturesFolderId) {
+            p.picturesFolderId = p.walkthroughsFolderId;
+            delete p.walkthroughsFolderId;
+          }
+        });
+        // Merge: use override list but fill in missing picturesFolderId from base config
+        config.properties = overrides.properties.map(op => {
+          const base = config.properties.find(bp => bp.name === op.name);
+          return {
+            ...op,
+            picturesFolderId: op.picturesFolderId || (base && base.picturesFolderId) || null,
+          };
+        });
+        // Add any new properties from base config not in overrides
+        config.properties.forEach(bp => {
+          if (!overrides.properties.find(op => op.name === bp.name)) {
+            config.properties.push(bp);
+          }
+        });
+      }
       if (overrides.areas) config.areas = overrides.areas;
+      // Re-save to clean up old format
+      saveConfigOverrides();
     }
     buildTagUI();
   }
@@ -1269,6 +1293,7 @@ const App = (() => {
   async function processDecisions() {
     showScreen('processing-screen');
     let moved = 0, trashed = 0, errors = 0;
+    const errorDetails = [];
 
     // Ensure Trash folder exists
     let trashFolderId;
@@ -1333,6 +1358,7 @@ const App = (() => {
         }
       } catch (err) {
         console.error(`Error processing ${photo.name}:`, err);
+        errorDetails.push(`${photo.name}: ${err.message}`);
         errors++;
       }
     }
@@ -1340,7 +1366,10 @@ const App = (() => {
     const detail = [];
     if (moved) detail.push(`${moved} moved to folders`);
     if (trashed) detail.push(`${trashed} moved to trash`);
-    if (errors) detail.push(`${errors} failed`);
+    if (errors) {
+      detail.push(`${errors} failed`);
+      detail.push('\n' + errorDetails.join('\n'));
+    }
 
     showResult(errors === 0, detail.join(', '));
   }
