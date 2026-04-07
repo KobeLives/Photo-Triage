@@ -740,7 +740,7 @@ const App = (() => {
   }
 
   async function listFiles(folderId, pageToken = null) {
-    let q = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`;
+    let q = `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
     let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType)&pageSize=${config.pageSize}&orderBy=createdTime desc`;
     if (pageToken) url += `&pageToken=${pageToken}`;
     return driveApi(url);
