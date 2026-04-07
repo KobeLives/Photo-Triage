@@ -2200,7 +2200,7 @@ const App = (() => {
       showScreen('triage-screen');
       showCurrentPhoto();
     });
-    $('btn-process').addEventListener('click', processDecisions);
+    $('btn-process').addEventListener('click', () => processDecisions());
     $('btn-restart').addEventListener('click', () => {
       showScreen('triage-screen');
       loadPhotos();
