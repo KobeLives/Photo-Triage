@@ -1739,7 +1739,7 @@ const App = (() => {
 
   function addCircle() {
     // Add circle in center, 15% radius
-    annotateCircles.push({ x: 50, y: 50, r: 10 });
+    annotateCircles.push({ x: 50, y: 50, r: 15 });
     selectedCircleIdx = annotateCircles.length - 1;
     renderAnnotateCircles();
   }
@@ -1751,55 +1751,70 @@ const App = (() => {
     renderAnnotateCircles();
   }
 
+  function updateCirclePosition(el, idx) {
+    const layer = $('annotate-circles-layer');
+    const c = annotateCircles[idx];
+    const px = c.x / 100 * layer.offsetWidth;
+    const py = c.y / 100 * layer.offsetHeight;
+    const pr = c.r / 100 * Math.min(layer.offsetWidth, layer.offsetHeight);
+    el.style.left = (px - pr) + 'px';
+    el.style.top = (py - pr) + 'px';
+    el.style.width = (pr * 2) + 'px';
+    el.style.height = (pr * 2) + 'px';
+  }
+
   function startCircleDrag(idx, e) {
     const layer = $('annotate-circles-layer');
     const layerW = layer.offsetWidth;
     const layerH = layer.offsetHeight;
-    const minDim = Math.min(layerW, layerH);
     const startTouch = e.touches[0];
     const startX = annotateCircles[idx].x;
     const startY = annotateCircles[idx].y;
     const startTX = startTouch.clientX;
     const startTY = startTouch.clientY;
+    const circleEl = layer.querySelector(`[data-idx="${idx}"]`);
 
     function onMove(e2) {
+      e2.preventDefault();
       const t = e2.touches[0];
       const dx = (t.clientX - startTX) / layerW * 100;
       const dy = (t.clientY - startTY) / layerH * 100;
       annotateCircles[idx].x = Math.max(0, Math.min(100, startX + dx));
       annotateCircles[idx].y = Math.max(0, Math.min(100, startY + dy));
-      renderAnnotateCircles();
+      updateCirclePosition(circleEl, idx);
     }
     function onEnd() {
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
+      renderAnnotateCircles();
     }
-    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd);
   }
 
   function startCircleResize(idx, e) {
     const layer = $('annotate-circles-layer');
     const minDim = Math.min(layer.offsetWidth, layer.offsetHeight);
-    const startTouch = e.touches[0];
-    const startR = annotateCircles[idx].r;
     const cx = annotateCircles[idx].x / 100 * layer.offsetWidth;
     const cy = annotateCircles[idx].y / 100 * layer.offsetHeight;
+    const circleEl = layer.querySelector(`[data-idx="${idx}"]`);
 
     function onMove(e2) {
+      e2.preventDefault();
       const t = e2.touches[0];
       const layerRect = layer.getBoundingClientRect();
       const tx = t.clientX - layerRect.left;
       const ty = t.clientY - layerRect.top;
       const dist = Math.hypot(tx - cx, ty - cy);
       annotateCircles[idx].r = Math.max(3, Math.min(45, dist / minDim * 100));
-      renderAnnotateCircles();
+      updateCirclePosition(circleEl, idx);
     }
     function onEnd() {
       document.removeEventListener('touchmove', onMove);
       document.removeEventListener('touchend', onEnd);
+      renderAnnotateCircles();
     }
-    document.addEventListener('touchmove', onMove, { passive: true });
+    document.addEventListener('touchmove', onMove, { passive: false });
     document.addEventListener('touchend', onEnd);
   }
 
