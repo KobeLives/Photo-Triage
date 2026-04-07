@@ -741,7 +741,7 @@ const App = (() => {
 
   async function listFiles(folderId, pageToken = null) {
     let q = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false`;
-    let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType)&pageSize=${config.pageSize}&orderBy=createdTime`;
+    let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType)&pageSize=${config.pageSize}&orderBy=createdTime desc`;
     if (pageToken) url += `&pageToken=${pageToken}`;
     return driveApi(url);
   }
@@ -1254,6 +1254,11 @@ const App = (() => {
     $('btn-modal-save').addEventListener('click', saveModal);
     $('modal-input-name').addEventListener('keydown', e => { if (e.key === 'Enter') saveModal(); });
     $('btn-back-triage').addEventListener('click', () => {
+      // If all photos were triaged, step back to the last one
+      if (currentIndex >= photos.length && decisions.length > 0) {
+        decisions.pop();
+        currentIndex--;
+      }
       showScreen('triage-screen');
       showCurrentPhoto();
     });
