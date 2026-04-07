@@ -218,6 +218,8 @@
   .btn-trash:active { background: rgba(255,59,48,0.2); }
   .btn-keep { border-color: var(--green); color: var(--green); }
   .btn-keep:active { background: rgba(52,199,89,0.2); }
+  .btn-annotate-action { border-color: var(--accent); color: var(--accent); }
+  .btn-annotate-action:active { background: rgba(74,158,255,0.2); }
 
   /* ── Tag Panel ── */
   .tag-panel {
@@ -277,6 +279,21 @@
     border-color: var(--accent);
     background: rgba(74,158,255,0.15);
   }
+
+  .btn-tag-annotate {
+    width: 50%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 2px solid var(--accent);
+    background: none;
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 8px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-tag-annotate:active { background: rgba(74,158,255,0.15); }
 
   .btn-confirm-tag {
     width: 100%;
@@ -660,8 +677,8 @@
   </div>
 
   <div class="actions" id="actions" style="display:none">
+    <button class="btn-action btn-annotate-action" id="btn-annotate" title="Annotate">&#9998;</button>
     <button class="btn-action btn-trash" id="btn-trash" title="Trash">&#10007;</button>
-    <button class="btn-icon" id="btn-annotate" title="Annotate" style="font-size:24px;color:var(--accent)">&#9998;</button>
     <button class="btn-action btn-keep" id="btn-keep" title="Keep">&#10003;</button>
   </div>
 </div>
@@ -707,6 +724,7 @@
       </div>
     </div>
   </div>
+  <button class="btn-tag-annotate" id="btn-tag-annotate">&#9998; Annotate</button>
   <button class="btn-confirm-tag" id="btn-confirm-tag" disabled>Confirm Tags</button>
 </div>
 
@@ -2130,6 +2148,10 @@ const App = (() => {
     });
     // Annotate
     $('btn-annotate').addEventListener('click', openAnnotateScreen);
+    $('btn-tag-annotate').addEventListener('click', () => {
+      closeTagPanel();
+      openAnnotateScreen();
+    });
     $('btn-annotate-back').addEventListener('click', closeAnnotateScreen);
     $('btn-annotate-done').addEventListener('click', closeAnnotateScreen);
     $('btn-add-circle').addEventListener('click', addCircle);
