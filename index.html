@@ -1086,6 +1086,8 @@ const App = (() => {
 
     if (!property || !area || !phase) return;
 
+    lastSelectedPropertyIndex = parseInt(property.dataset.value);
+
     decisions.push({
       photoIndex: currentIndex,
       action: 'keep',
@@ -1114,12 +1116,22 @@ const App = (() => {
   // ══════════════════════════════
   // Tag Panel
   // ══════════════════════════════
+  let lastSelectedPropertyIndex = null;
+
   function openTagPanel() {
-    // Reset everything
-    selectedPropertyIndex = null;
     renderPropertyChips();
     $('tag-panel').classList.add('open');
     $('tag-backdrop').classList.add('open');
+
+    // Re-select the last used property
+    if (lastSelectedPropertyIndex !== null && lastSelectedPropertyIndex < config.properties.length) {
+      const chip = document.querySelector(`.tag-chip[data-group="property"][data-value="${lastSelectedPropertyIndex}"]`);
+      if (chip) {
+        chip.classList.add('selected');
+        selectedPropertyIndex = lastSelectedPropertyIndex;
+        onPropertySelected(lastSelectedPropertyIndex);
+      }
+    }
   }
 
   function closeTagPanel() {
