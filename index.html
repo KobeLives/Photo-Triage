@@ -638,6 +638,7 @@
   <h1>Photo Triage</h1>
   <p>Sign in with Google to sort walkthrough photos into Drive folders.</p>
   <button class="btn-login" id="btn-sign-in">Sign in with Google</button>
+  <p style="color:#555;font-size:11px;margin-top:24px">v2.1</p>
 </div>
 
 <!-- ── Triage Screen ── -->
@@ -1179,11 +1180,18 @@ const App = (() => {
   }
 
   async function moveFile(fileId, fromFolderId, toFolderId) {
-    return driveApi(`/files/${fileId}?addParents=${toFolderId}&removeParents=${fromFolderId}`, {
+    const result = await driveApi(`/files/${fileId}?addParents=${toFolderId}&removeParents=${fromFolderId}&fields=id,name,parents`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     });
+    console.log(`moveFile ${fileId}: parents after move =`, result?.parents, `(expected ${toFolderId}, removed ${fromFolderId})`);
+    // Verify the file actually moved
+    if (result?.parents && result.parents.includes(fromFolderId)) {
+      console.warn(`moveFile FAILED: file ${fileId} still in source folder`);
+      throw new Error(`File did not move — still in source folder`);
+    }
+    return result;
   }
 
   async function renameFile(fileId, newName) {
@@ -1721,6 +1729,19 @@ const App = (() => {
     processingState = null;
     releaseWakeLock();
 
+    // Post-processing verification: re-check inbox to confirm files moved
+    let verifyMsg = '';
+    try {
+      const check = await listFiles(config.inboxFolderId, null);
+      const remaining = (check.files || []).length;
+      verifyMsg = `\nInbox: ${remaining} file(s) remaining`;
+      if (remaining > 0 && errors === 0 && (moved + trashed) > 0) {
+        console.warn('Verification: files still in inbox after successful processing');
+      }
+    } catch (e) {
+      verifyMsg = '\n(Could not verify inbox)';
+    }
+
     const detail = [];
     if (moved) detail.push(`${moved} moved to folders`);
     if (trashed) detail.push(`${trashed} moved to trash`);
@@ -1728,6 +1749,7 @@ const App = (() => {
       detail.push(`${errors} failed`);
       detail.push('\n' + errorDetails.join('\n'));
     }
+    detail.push(verifyMsg);
 
     showResult(errors === 0, detail.join(', '));
   }
