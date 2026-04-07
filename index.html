@@ -651,7 +651,7 @@ const App = (() => {
   // Config
   // ══════════════════════════════
   async function loadConfig() {
-    const resp = await fetch('config.json');
+    const resp = await fetch('config.json?v=' + Date.now());
     config = await resp.json();
     // Merge localStorage overrides
     const saved = localStorage.getItem('photoTriageConfig');
