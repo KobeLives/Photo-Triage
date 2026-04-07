@@ -762,10 +762,10 @@ const App = (() => {
 
     // Fetch existing area subfolders from Drive
     let existingAreas = [];
-    if (prop.walkthroughsFolderId) {
+    if (prop.picturesFolderId) {
       try {
         if (!propertyAreasCache[propIndex]) {
-          const q = `'${prop.walkthroughsFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+          const q = `'${prop.picturesFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
           const result = await driveApi(`/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=100`);
           propertyAreasCache[propIndex] = (result.files || []).map(f => f.name);
         }
@@ -1283,15 +1283,15 @@ const App = (() => {
           trashed++;
         } else if (d.action === 'keep') {
           const prop = config.properties[d.tags.propertyIndex];
-          let walkthroughsId = prop.walkthroughsFolderId;
+          let walkthroughsId = prop.picturesFolderId;
 
           // Auto-create property + Walkthroughs folder if none exists
           if (!walkthroughsId) {
             $('process-status').textContent = `Creating folders for ${prop.name}...`;
             const propertyFolderId = await findOrCreateFolder(prop.name, config.rootFolderId);
-            walkthroughsId = await findOrCreateFolder('Walkthroughs', propertyFolderId);
+            walkthroughsId = await findOrCreateFolder('Pictures', propertyFolderId);
             // Save back so we don't re-create next time
-            prop.walkthroughsFolderId = walkthroughsId;
+            prop.picturesFolderId = walkthroughsId;
             saveConfigOverrides();
           }
 
@@ -1350,7 +1350,7 @@ const App = (() => {
       <div class="settings-item">
         <div>
           <div class="settings-item-name">${p.name}</div>
-          <div class="settings-item-sub">${p.walkthroughsFolderId ? 'Folder ID: ' + p.walkthroughsFolderId.slice(0, 12) + '...' : 'No folder ID — will prompt on first use'}</div>
+          <div class="settings-item-sub">${p.picturesFolderId ? 'Folder ID: ' + p.picturesFolderId.slice(0, 12) + '...' : 'No folder ID — will prompt on first use'}</div>
         </div>
         <button class="btn-remove" data-type="property" data-index="${i}" title="Remove">&#10005;</button>
       </div>
@@ -1409,7 +1409,7 @@ const App = (() => {
 
     if (modalMode === 'property') {
       const folderId = $('modal-input-folder').value.trim() || null;
-      config.properties.push({ name: name, walkthroughsFolderId: folderId });
+      config.properties.push({ name: name, picturesFolderId: folderId });
     } else if (modalMode === 'area') {
       config.areas.push(name);
     }
