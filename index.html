@@ -1099,11 +1099,14 @@ const App = (() => {
           const prop = config.properties[d.tags.propertyIndex];
           let walkthroughsId = prop.walkthroughsFolderId;
 
-          // If no walkthroughs folder configured, we can't proceed
+          // Auto-create property + Walkthroughs folder if none exists
           if (!walkthroughsId) {
-            console.warn(`No walkthroughs folder for ${prop.name}. Skipping.`);
-            errors++;
-            continue;
+            $('process-status').textContent = `Creating folders for ${prop.name}...`;
+            const propertyFolderId = await findOrCreateFolder(prop.name, config.rootFolderId);
+            walkthroughsId = await findOrCreateFolder('Walkthroughs', propertyFolderId);
+            // Save back so we don't re-create next time
+            prop.walkthroughsFolderId = walkthroughsId;
+            saveConfigOverrides();
           }
 
           // Find or create area subfolder
