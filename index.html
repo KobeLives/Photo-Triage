@@ -721,6 +721,23 @@ const App = (() => {
     }));
   }
 
+  // Parse photo date from EXIF or Drive metadata
+  // EXIF time format: "2026:04:06 09:30:00" — colons in date part
+  function parsePhotoDate(photo) {
+    const exifTime = photo.imageMediaMetadata?.time;
+    if (exifTime) {
+      // Convert "2026:04:06 09:30:00" → "2026-04-06T09:30:00"
+      const fixed = exifTime.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').replace(' ', 'T');
+      const d = new Date(fixed);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (photo.createdTime) {
+      const d = new Date(photo.createdTime);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
+  }
+
   // Per-property custom phases stored in localStorage
   // Format: { "PropertyName": ["Custom Phase 1", ...] }
   let propertyPhases = {};
@@ -1074,14 +1091,11 @@ const App = (() => {
     }
 
     // Show filename + date taken
-    const takenDate = photo.imageMediaMetadata?.time || photo.createdTime;
     let dateStr = '';
-    if (takenDate) {
-      try {
-        const d = new Date(takenDate);
-        dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          + ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      } catch (e) { dateStr = takenDate; }
+    const d = parsePhotoDate(photo);
+    if (d) {
+      dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        + ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     }
     $('photo-filename').textContent = (isVideo ? '🎬 ' : '') + photo.name + (dateStr ? '  ·  ' + dateStr : '');
     card.style.display = 'flex';
@@ -1373,8 +1387,7 @@ const App = (() => {
 
           // Rename file using date taken (or upload date as fallback)
           const ext = photo.name.split('.').pop() || 'jpg';
-          const takenDate = photo.imageMediaMetadata?.time || photo.createdTime;
-          const dateObj = takenDate ? new Date(takenDate) : new Date();
+          const dateObj = parsePhotoDate(photo) || new Date();
           const date = dateObj.toISOString().split('T')[0];
           const time = dateObj.toTimeString().slice(0, 5).replace(':', '');
           const seq = String(i + 1).padStart(3, '0');
