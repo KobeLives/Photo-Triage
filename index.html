@@ -528,17 +528,43 @@
 <!-- ── Tag Panel ── -->
 <div class="tag-panel-backdrop" id="tag-backdrop"></div>
 <div class="tag-panel" id="tag-panel">
-  <div class="tag-section">
-    <div class="tag-section-label">Property</div>
+  <!-- Step 1: Property -->
+  <div class="tag-section" id="tag-step-property">
+    <div class="settings-section-header">
+      <div class="tag-section-label">Property</div>
+      <button class="btn-add-small" id="btn-tag-add-property">+ New</button>
+    </div>
     <div class="tag-grid" id="tag-properties"></div>
   </div>
-  <div class="tag-section">
-    <div class="tag-section-label">Area</div>
+  <!-- Step 2: Area (shown after property selected) -->
+  <div class="tag-section" id="tag-step-area" style="display:none">
+    <div class="settings-section-header">
+      <div class="tag-section-label">Area</div>
+      <button class="btn-add-small" id="btn-tag-add-area">+ Add</button>
+    </div>
     <div class="tag-grid" id="tag-areas"></div>
+    <div id="tag-area-picker" style="display:none;margin-top:12px">
+      <div class="tag-section-label" style="margin-bottom:6px">Choose or create an area</div>
+      <div class="tag-grid" id="tag-area-picker-list"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input class="modal-input" id="tag-area-new-input" placeholder="New area name" style="margin-bottom:0;flex:1">
+        <button class="btn-add-small" id="btn-tag-area-create" style="white-space:nowrap">Create</button>
+      </div>
+    </div>
   </div>
-  <div class="tag-section">
-    <div class="tag-section-label">Phase</div>
+  <!-- Step 3: Phase (shown after area selected) -->
+  <div class="tag-section" id="tag-step-phase" style="display:none">
+    <div class="settings-section-header">
+      <div class="tag-section-label">Phase</div>
+      <button class="btn-add-small" id="btn-tag-add-phase">+ Add</button>
+    </div>
     <div class="tag-grid" id="tag-phases"></div>
+    <div id="tag-phase-picker" style="display:none;margin-top:10px">
+      <div style="display:flex;gap:8px">
+        <input class="modal-input" id="tag-phase-new-input" placeholder="New phase name" style="margin-bottom:0;flex:1">
+        <button class="btn-add-small" id="btn-tag-phase-create" style="white-space:nowrap">Create</button>
+      </div>
+    </div>
   </div>
   <button class="btn-confirm-tag" id="btn-confirm-tag" disabled>Confirm Tags</button>
 </div>
@@ -670,26 +696,186 @@ const App = (() => {
     }));
   }
 
+  // Per-property custom phases stored in localStorage
+  // Format: { "PropertyName": ["Custom Phase 1", ...] }
+  let propertyPhases = {};
+  // Cache of area subfolders per property (fetched from Drive)
+  let propertyAreasCache = {};
+  // Currently selected property index in tag panel
+  let selectedPropertyIndex = null;
+
+  function loadPropertyPhases() {
+    const saved = localStorage.getItem('photoTriagePropertyPhases');
+    if (saved) propertyPhases = JSON.parse(saved);
+  }
+
+  function savePropertyPhases() {
+    localStorage.setItem('photoTriagePropertyPhases', JSON.stringify(propertyPhases));
+  }
+
+  function getPhasesForProperty(propName) {
+    const custom = propertyPhases[propName] || [];
+    return [...config.phases, ...custom];
+  }
+
   function buildTagUI() {
+    // Just build properties — areas and phases are dynamic
+    renderPropertyChips();
+  }
+
+  function renderPropertyChips() {
     $('tag-properties').innerHTML = config.properties
       .map((p, i) => `<button class="tag-chip" data-group="property" data-value="${i}">${p.name}</button>`)
       .join('');
-    $('tag-areas').innerHTML = config.areas
-      .map(a => `<button class="tag-chip" data-group="area" data-value="${a}">${a}</button>`)
-      .join('');
-    $('tag-phases').innerHTML = config.phases
+
+    // Reset downstream sections
+    $('tag-step-area').style.display = 'none';
+    $('tag-step-phase').style.display = 'none';
+    $('tag-area-picker').style.display = 'none';
+    $('tag-phase-picker').style.display = 'none';
+    selectedPropertyIndex = null;
+    updateConfirmButton();
+
+    // Bind property chip clicks
+    document.querySelectorAll('.tag-chip[data-group="property"]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.tag-chip[data-group="property"]').forEach(c => c.classList.remove('selected'));
+        chip.classList.add('selected');
+        selectedPropertyIndex = parseInt(chip.dataset.value);
+        onPropertySelected(selectedPropertyIndex);
+      });
+    });
+  }
+
+  async function onPropertySelected(propIndex) {
+    const prop = config.properties[propIndex];
+
+    // Show area section with loading state
+    $('tag-step-area').style.display = 'block';
+    $('tag-areas').innerHTML = '<span style="color:var(--text-dim);font-size:13px">Loading areas...</span>';
+    $('tag-area-picker').style.display = 'none';
+
+    // Reset phase section
+    $('tag-step-phase').style.display = 'none';
+    $('tag-phase-picker').style.display = 'none';
+    updateConfirmButton();
+
+    // Fetch existing area subfolders from Drive
+    let existingAreas = [];
+    if (prop.walkthroughsFolderId) {
+      try {
+        if (!propertyAreasCache[propIndex]) {
+          const q = `'${prop.walkthroughsFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+          const result = await driveApi(`/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=100`);
+          propertyAreasCache[propIndex] = (result.files || []).map(f => f.name);
+        }
+        existingAreas = propertyAreasCache[propIndex];
+      } catch (err) {
+        console.error('Error fetching areas:', err);
+      }
+    }
+
+    // Render area chips (existing subfolders only)
+    if (existingAreas.length === 0) {
+      $('tag-areas').innerHTML = '<span style="color:var(--text-dim);font-size:13px">No areas yet — tap + Add</span>';
+    } else {
+      $('tag-areas').innerHTML = existingAreas
+        .map(a => `<button class="tag-chip" data-group="area" data-value="${a}">${a}</button>`)
+        .join('');
+
+      // Bind area chip clicks
+      document.querySelectorAll('.tag-chip[data-group="area"]').forEach(chip => {
+        chip.addEventListener('click', () => {
+          document.querySelectorAll('.tag-chip[data-group="area"]').forEach(c => c.classList.remove('selected'));
+          chip.classList.add('selected');
+          $('tag-area-picker').style.display = 'none';
+          onAreaSelected(propIndex);
+        });
+      });
+    }
+  }
+
+  function onAreaSelected(propIndex) {
+    const prop = config.properties[propIndex];
+    const phases = getPhasesForProperty(prop.name);
+
+    // Show phase section
+    $('tag-step-phase').style.display = 'block';
+    $('tag-phase-picker').style.display = 'none';
+    $('tag-phases').innerHTML = phases
       .map(p => `<button class="tag-chip" data-group="phase" data-value="${p}">${p}</button>`)
       .join('');
 
-    // Tag chip click handlers
-    document.querySelectorAll('.tag-chip').forEach(chip => {
+    // Bind phase chip clicks
+    document.querySelectorAll('.tag-chip[data-group="phase"]').forEach(chip => {
       chip.addEventListener('click', () => {
-        const group = chip.dataset.group;
-        document.querySelectorAll(`.tag-chip[data-group="${group}"]`).forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.tag-chip[data-group="phase"]').forEach(c => c.classList.remove('selected'));
         chip.classList.add('selected');
+        $('tag-phase-picker').style.display = 'none';
         updateConfirmButton();
       });
     });
+
+    updateConfirmButton();
+  }
+
+  function showAreaPicker() {
+    const existingAreas = propertyAreasCache[selectedPropertyIndex] || [];
+    // Show master area list minus already-existing ones
+    const available = config.areas.filter(a => !existingAreas.includes(a));
+
+    $('tag-area-picker-list').innerHTML = available.length > 0
+      ? available.map(a => `<button class="tag-chip" data-group="area-pick" data-value="${a}">${a}</button>`).join('')
+      : '<span style="color:var(--text-dim);font-size:13px">All areas already added</span>';
+
+    $('tag-area-picker').style.display = 'block';
+    $('tag-area-new-input').value = '';
+
+    // Bind picker chip clicks — selecting from master list
+    document.querySelectorAll('.tag-chip[data-group="area-pick"]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        addAreaToProperty(chip.dataset.value);
+      });
+    });
+  }
+
+  function addAreaToProperty(areaName) {
+    // Add to property's area cache
+    if (!propertyAreasCache[selectedPropertyIndex]) {
+      propertyAreasCache[selectedPropertyIndex] = [];
+    }
+    if (!propertyAreasCache[selectedPropertyIndex].includes(areaName)) {
+      propertyAreasCache[selectedPropertyIndex].push(areaName);
+    }
+    // Also add to master list if it's new
+    if (!config.areas.includes(areaName)) {
+      config.areas.push(areaName);
+      saveConfigOverrides();
+    }
+    // Re-render areas and auto-select the new one
+    onPropertySelected(selectedPropertyIndex).then(() => {
+      const chip = document.querySelector(`.tag-chip[data-group="area"][data-value="${areaName}"]`);
+      if (chip) {
+        chip.click();
+      }
+    });
+  }
+
+  function addPhaseToProperty(phaseName) {
+    const prop = config.properties[selectedPropertyIndex];
+    if (!propertyPhases[prop.name]) {
+      propertyPhases[prop.name] = [];
+    }
+    if (!propertyPhases[prop.name].includes(phaseName) && !config.phases.includes(phaseName)) {
+      propertyPhases[prop.name].push(phaseName);
+      savePropertyPhases();
+    }
+    // Re-render phases and auto-select the new one
+    onAreaSelected(selectedPropertyIndex);
+    setTimeout(() => {
+      const chip = document.querySelector(`.tag-chip[data-group="phase"][data-value="${phaseName}"]`);
+      if (chip) chip.click();
+    }, 50);
   }
 
   // ══════════════════════════════
@@ -929,9 +1115,9 @@ const App = (() => {
   // Tag Panel
   // ══════════════════════════════
   function openTagPanel() {
-    // Reset selections
-    document.querySelectorAll('.tag-chip').forEach(c => c.classList.remove('selected'));
-    updateConfirmButton();
+    // Reset everything
+    selectedPropertyIndex = null;
+    renderPropertyChips();
     $('tag-panel').classList.add('open');
     $('tag-backdrop').classList.add('open');
   }
@@ -1230,7 +1416,12 @@ const App = (() => {
 
     saveConfigOverrides();
     closeModal();
-    renderSettingsList();
+    // Refresh whichever screen is active
+    if (document.querySelector('#settings-screen.active')) {
+      renderSettingsList();
+    } else if ($('tag-panel').classList.contains('open')) {
+      renderPropertyChips();
+    }
   }
 
   // ══════════════════════════════
@@ -1245,7 +1436,8 @@ const App = (() => {
     $('btn-done').addEventListener('click', showDoneScreen);
     $('btn-settings').addEventListener('click', openSettings);
     $('btn-settings-back').addEventListener('click', () => {
-      buildTagUI(); // rebuild tag chips with any changes
+      propertyAreasCache = {}; // clear cache so fresh areas load
+      buildTagUI();
       showScreen('triage-screen');
     });
     $('btn-add-property').addEventListener('click', () => openModal('property'));
@@ -1253,6 +1445,41 @@ const App = (() => {
     $('btn-modal-cancel').addEventListener('click', closeModal);
     $('btn-modal-save').addEventListener('click', saveModal);
     $('modal-input-name').addEventListener('keydown', e => { if (e.key === 'Enter') saveModal(); });
+    // Tag panel: add property inline
+    $('btn-tag-add-property').addEventListener('click', () => {
+      openModal('property');
+    });
+    // Tag panel: add area picker
+    $('btn-tag-add-area').addEventListener('click', () => {
+      showAreaPicker();
+    });
+    // Tag panel: create new area from input
+    $('btn-tag-area-create').addEventListener('click', () => {
+      const name = $('tag-area-new-input').value.trim();
+      if (name) addAreaToProperty(name);
+    });
+    $('tag-area-new-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const name = $('tag-area-new-input').value.trim();
+        if (name) addAreaToProperty(name);
+      }
+    });
+    // Tag panel: add phase
+    $('btn-tag-add-phase').addEventListener('click', () => {
+      $('tag-phase-picker').style.display = 'block';
+      $('tag-phase-new-input').value = '';
+      setTimeout(() => $('tag-phase-new-input').focus(), 100);
+    });
+    $('btn-tag-phase-create').addEventListener('click', () => {
+      const name = $('tag-phase-new-input').value.trim();
+      if (name) addPhaseToProperty(name);
+    });
+    $('tag-phase-new-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const name = $('tag-phase-new-input').value.trim();
+        if (name) addPhaseToProperty(name);
+      }
+    });
     $('btn-back-triage').addEventListener('click', () => {
       // If all photos were triaged, step back to the last one
       if (currentIndex >= photos.length && decisions.length > 0) {
@@ -1274,6 +1501,7 @@ const App = (() => {
   // ══════════════════════════════
   async function init() {
     await loadConfig();
+    loadPropertyPhases();
     bindEvents();
     initSwipe();
     initKeyboard();
