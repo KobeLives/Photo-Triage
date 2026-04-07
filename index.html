@@ -125,12 +125,12 @@
     will-change: transform;
     transition: transform 0.08s ease-out;
   }
-  .photo-card img {
+  .photo-card img, .photo-card video {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
-    pointer-events: none;
   }
+  .photo-card img { pointer-events: none; }
   .photo-card .swipe-overlay {
     position: absolute;
     inset: 0;
@@ -511,6 +511,7 @@
       <div class="swipe-overlay keep" id="overlay-keep">&#10003;</div>
       <div class="swipe-overlay trash" id="overlay-trash">&#10007;</div>
       <img id="photo-img" src="" alt="Photo">
+      <video id="photo-video" src="" playsinline muted controls style="display:none;max-width:100%;max-height:100%;object-fit:contain"></video>
       <div class="photo-filename" id="photo-filename"></div>
     </div>
     <div class="empty-state" id="empty-state" style="display:none">
@@ -951,7 +952,7 @@ const App = (() => {
 
   async function listFiles(folderId, pageToken = null) {
     let q = `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
-    let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType)&pageSize=${config.pageSize}&orderBy=createdTime desc`;
+    let url = `/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,thumbnailLink,mimeType,webContentLink)&pageSize=${config.pageSize}&orderBy=createdTime desc`;
     if (pageToken) url += `&pageToken=${pageToken}`;
     return driveApi(url);
   }
@@ -1050,15 +1051,29 @@ const App = (() => {
     const photo = photos[currentIndex];
     const card = $('photo-card');
     const img = $('photo-img');
+    const video = $('photo-video');
+    const isVideo = photo.mimeType && photo.mimeType.startsWith('video/');
 
-    // Use larger thumbnail for better quality
-    let thumbUrl = photo.thumbnailLink;
-    if (thumbUrl) {
-      thumbUrl = thumbUrl.replace(/=s\d+/, '=s800');
+    if (isVideo) {
+      img.style.display = 'none';
+      video.style.display = 'block';
+      // Stream video via Drive API with auth
+      video.src = `https://www.googleapis.com/drive/v3/files/${photo.id}?alt=media&access_token=${accessToken}`;
+      video.load();
+    } else {
+      video.style.display = 'none';
+      video.src = '';
+      video.pause();
+      img.style.display = 'block';
+      // Use larger thumbnail for better quality
+      let thumbUrl = photo.thumbnailLink;
+      if (thumbUrl) {
+        thumbUrl = thumbUrl.replace(/=s\d+/, '=s800');
+      }
+      img.src = thumbUrl || '';
     }
 
-    img.src = thumbUrl || '';
-    $('photo-filename').textContent = photo.name;
+    $('photo-filename').textContent = photo.name + (isVideo ? ' 🎬' : '');
     card.style.display = 'flex';
     card.style.transform = '';
     $('actions').style.display = 'flex';
